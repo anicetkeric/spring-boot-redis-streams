@@ -4,7 +4,7 @@ Order event processing demo using Redis Streams with two consumer groups.
 
 ## Requirements
 
-- Java 21
+- Java 25+
 - Maven 3.9+
 - Docker + Docker Compose
 

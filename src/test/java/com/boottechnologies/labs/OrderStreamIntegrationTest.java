@@ -3,14 +3,17 @@ package com.boottechnologies.labs;
 import com.boottechnologies.labs.dto.CreateOrderRequest;
 import com.boottechnologies.labs.dto.OrderResponse;
 import com.boottechnologies.labs.domain.OrderStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -32,11 +35,20 @@ class OrderStreamIntegrationTest {
     static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))
             .withExposedPorts(6379);
 
-    @Autowired
-    TestRestTemplate restTemplate;
+    @LocalServerPort
+    int port;
+
+    private RestClient restClient;
 
     @Autowired
     StringRedisTemplate redisTemplate;
+
+    @BeforeEach
+    void setUp() {
+        restClient = RestClient.builder()
+                .baseUrl("http://localhost:" + port)
+                .build();
+    }
 
     @Test
     void shouldPublishOrderEventToStream() {
@@ -46,8 +58,11 @@ class OrderStreamIntegrationTest {
                 new BigDecimal("149.99")
         );
 
-        ResponseEntity<OrderResponse> response = restTemplate.postForEntity(
-                "/api/v1/orders", request, OrderResponse.class);
+        ResponseEntity<OrderResponse> response = restClient.post()
+                .uri("/api/v1/orders")
+                .body(request)
+                .retrieve()
+                .toEntity(OrderResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(response.getBody()).isNotNull();
@@ -64,7 +79,11 @@ class OrderStreamIntegrationTest {
                 new BigDecimal("29.99")
         );
 
-        restTemplate.postForEntity("/api/v1/orders", request, OrderResponse.class);
+        restClient.post()
+                .uri("/api/v1/orders")
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
 
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
             Long streamLen = redisTemplate.opsForStream().size("orders:events");
@@ -80,8 +99,12 @@ class OrderStreamIntegrationTest {
                 BigDecimal.ZERO
         );
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                "/api/v1/orders", invalid, String.class);
+        ResponseEntity<String> response = restClient.post()
+                .uri("/api/v1/orders")
+                .body(invalid)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {})
+                .toEntity(String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }

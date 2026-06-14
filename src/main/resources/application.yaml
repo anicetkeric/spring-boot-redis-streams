@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: spring-boot-redis-streams
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 2s
+      timeout: 1s
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+          max-wait: 1s
+
+app:
+  streams:
+    orders:
+      stream-key: orders:events
+      dlq-key: orders:dlq
+      max-len: 10000
+      inventory-group: inventory-group
+      notification-group: notification-group
+      inventory-consumer: inventory-consumer-1
+      notification-consumer: notification-consumer-1
+      claim-min-idle-ms: 30000
+
+logging:
+  level:
+    com.boottechnologies.redisstreams: DEBUG
+    org.springframework.data.redis: INFO
